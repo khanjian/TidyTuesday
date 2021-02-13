@@ -1,0 +1,189 @@
+---
+title: "Tidy Tuesday"
+subtitle: "Plastic Pollution"
+author: "Roupen Khanjian"
+date: "2/7/2021"
+output: 
+  html_document:
+    theme: darkly
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(lubridate)
+library(skimr)
+library(ggfortify)
+library(plotly)
+library(ggpol)
+library(ggthemes)
+library(patchwork)
+library(RColorBrewer)
+
+```
+
+
+```{r}
+plastics <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-01-26/plastics.csv')
+  
+plastics_longer <- plastics %>% 
+  pivot_longer(empty:grand_total, 
+               names_to = "plastic_type", 
+               values_to = "count")
+
+
+# change nestle to nestle
+plastics_longer <- plastics_longer %>% 
+  mutate(company =
+           case_when(
+             str_detect(parent_company, c("Nestlé")) ~ "Nestle",
+             str_detect(parent_company, c("Nestlè")) ~ "Nestle",
+             str_detect(parent_company, c("nestle")) ~ "Nestle",
+             str_detect(parent_company, c("NESTLE")) ~ "Nestle",
+             str_detect(parent_company, c("nestlé")) ~ "Nestle",
+             str_detect(parent_company, c("Nestlé")) ~ "Nestle",
+             str_detect(parent_company, c("nestlé")) ~ "Nestle",
+             str_detect(parent_company, c("Pepsico")) ~ "PepsiCo",
+             str_detect(parent_company, c("PepsiCo")) ~ "PepsiCo",
+             !str_detect(parent_company, c("Nestlé")) ~ parent_company,
+             !str_detect(parent_company, c("Nestle")) ~ parent_company,
+             !str_detect(parent_company, c("nestle")) ~ parent_company,
+             !str_detect(parent_company, c("NESTLE")) ~ parent_company,
+             !str_detect(parent_company, c("nestlé")) ~ parent_company,
+             !str_detect(parent_company, c("Nestlé")) ~ parent_company,
+             !str_detect(parent_company, c("nestlé")) ~ parent_company,
+             !str_detect(parent_company, c("Pepsico")) ~ parent_company,
+             !str_detect(parent_company, c("PepsiCo")) ~ parent_company
+           )) %>% 
+  mutate(country = 
+           case_when(
+             str_detect(country, c("NIGERIA")) ~ "Nigeria",
+             !str_detect(country, c("NIGERIA")) ~ country
+           ))
+
+
+top_countries <- plastics_longer %>%
+  filter(plastic_type != "grand_total") %>%
+  filter(country != "EMPTY") %>%
+  count(country,
+        wt = count,
+        sort = TRUE) %>%
+  slice_max(n, n = 10)
+
+top_countries_names <- plastics_longer %>% 
+  right_join(top_countries, by = "country")
+
+plastics_longer_countries <- plastics_longer %>%
+  mutate(country =
+           case_when(
+             country %in% top_countries[1,1] ~ country,
+             country %in% top_countries[2,1] ~ country,
+             country %in% top_countries[3,1] ~ country,
+             country %in% top_countries[4,1] ~ country,
+             country %in% top_countries[5,1] ~ country,
+             country %in% top_countries[6,1] ~ country,
+             country %in% top_countries[7,1] ~ country,
+             country %in% top_countries[8,1] ~ country,
+             country %in% top_countries[9,1] ~ country,
+             country %in% top_countries[10,1] ~ country,
+             !country %in% top_countries["country"] ~ "Other"
+           ))
+
+countries_data <- plastics_longer_countries %>%
+  filter(plastic_type != "grand_total") %>%
+  filter(country != "EMPTY") %>%
+  count(country,
+        wt = count,
+        sort = TRUE) %>%
+  slice_max(n, n = 12)
+
+# Countries plot
+c1 <- ggplot(data = countries_data) +
+  geom_arcbar(aes(shares = n, r0 = 4, r1 = 10, fill = country)) +
+  scale_fill_manual(values=c("cadetblue4", "violetred3", "olivedrab",
+                              "hotpink", "gold2", "aquamarine3", "lemonchiffon2",
+                              "lightcyan3", "royalblue", "slateblue3", "yellow")) +
+  coord_fixed() +
+  theme_void() +
+  labs(title = "Top 10 Countries in Total Plastic Waste",
+       subtitle = "All other countries are combined into one category 'Other'",
+       fill = "Countries") +
+  theme(legend.key.size = unit(0.35, 'cm'), #change legend key size
+        plot.title = element_text(size = 12, face = "bold", color = "white"),
+        plot.subtitle = element_text(size = 10, color = "white"),
+        legend.title = element_text(size=12, face = "bold", color = "white"), 
+        legend.text = element_text(size=10, color = "white")) 
+
+top_brands <- plastics_longer %>%
+  filter(plastic_type != "grand_total") %>%
+  filter(!company %in% c("Grand Total",
+                                "Unbranded",
+                                "null",
+                                "NULL",
+                                "Assorted")) %>% 
+  count(company,
+        wt = count,
+        sort = TRUE) %>%
+  slice_max(n, n = 10)
+
+top_brands_names <- plastics_longer %>% 
+  right_join(top_brands, by = "company")
+
+plastics_longer_brands <- plastics_longer %>%
+  mutate(company =
+           case_when(
+             company %in% top_brands[1,1] ~ company,
+             company %in% top_brands[2,1] ~ company,
+             company %in% top_brands[3,1] ~ company,
+             company %in% top_brands[4,1] ~ company,
+             company %in% top_brands[5,1] ~ company,
+             company %in% top_brands[6,1] ~ company,
+             company %in% top_brands[7,1] ~ company,
+             company %in% top_brands[8,1] ~ company,
+             company %in% top_brands[9,1] ~ company,
+             company %in% top_brands[10,1] ~ company,
+             !company %in% top_brands["company"] ~ "Other"
+           ))
+
+brands_data <- plastics_longer_brands %>%
+  filter(plastic_type != "grand_total") %>%
+  count(company,
+        wt = count,
+        sort = TRUE) %>%
+  slice_max(n, n = 11)
+
+# Brands plot
+b1 <- ggplot(data = brands_data) +
+  geom_arcbar(aes(shares = n, r0 = 5, r1 = 10, fill = company)) +
+  coord_fixed() +
+  scale_fill_manual(values=c("cadetblue4", "violetred3", "olivedrab",
+                              "hotpink", "gold2", "aquamarine3", "lemonchiffon2",
+                              "lightcyan3", "royalblue", "slateblue3", "yellow")) +
+  theme_solarized() +
+  theme_void() +
+  labs(title = "Top 10 Brands in Total Plastic Waste",
+       subtitle = "All other brands are combined into one category 'Other'",
+       fill = "Company") +
+  theme(legend.key.size = unit(0.35, 'cm'), #change legend key size
+        plot.title = element_text(size = 12, face = "bold", color = "white"),
+        plot.subtitle = element_text(size = 10.5, color = "white"),
+        legend.title = element_text(size=12, face = "bold", color = "white"),
+        legend.text = element_text(size=10, color = "white")) 
+
+patchwork <- b1 / c1
+
+patchwork +
+  plot_annotation(
+    caption = "By Roupen Khanjian"
+  ) & theme(plot.background = element_rect(fill = "black",
+                                                 color = "black"),
+                  strip.background = element_rect(fill = "black",
+                                                 color = "black"),
+            plot.caption = element_text(color = "white"))
+  
+
+```
+
+
+
